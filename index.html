@@ -1,0 +1,2096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlueRedBlack Chat</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <style>
+        /* --- Basic Reset & Global Styles --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden; /* Prevent scrolling on body */
+            background-color: #f0f2f5; /* Light grey background */
+            color: #1c1e21; /* Dark text */
+        }
+
+        /* --- Color Palette (Blue/Red/Black Mix) --- */
+        /* Using direct hex codes as requested */
+        .colorPrimary { color: #005A9C; } /* Blue */
+        .colorSecondary { color: #D80032; } /* Red */
+        .colorTextPrimary { color: #1c1e21; } /* Black/Dark Grey */
+        .colorTextSecondary { color: #65676b; } /* Medium Grey */
+        .colorBackground { background-color: #ffffff; } /* White */
+        .colorBackgroundAccent { background-color: #f0f2f5; } /* Light Grey */
+        .colorSentMessage { background-color: #dcf8c6; } /* Light green like WhatsApp */
+        .colorReceivedMessage { background-color: #ffffff; } /* White */
+        .colorInputBorder { border-color: #ccd0d5; }
+        .colorButtonBg { background-color: #005A9C; color: white; }
+        .colorButtonBgSecondary { background-color: #e4e6eb; color: #1c1e21; }
+        .colorReadReceiptSent { color: #65676b; } /* Grey for sent */
+        .colorReadReceiptRead { color: #008080; } /* Dark Cyan for read */
+        .colorError { color: #D80032; } /* Red for errors */
+
+        /* --- Utility Classes --- */
+        .hidden { display: none !important; }
+        .flexContainer { display: flex; }
+        .flexColumn { flex-direction: column; }
+        .flexGrow { flex-grow: 1; }
+        .itemsCenter { align-items: center; }
+        .justifyCenter { justify-content: center; }
+        .justifyBetween { justify-content: space-between; }
+        .textCenter { text-align: center; }
+        .fullHeight { height: 100%; }
+        .fullWidth { width: 100%; }
+        .paddingMd { padding: 16px; }
+        .paddingSm { padding: 8px; }
+        .marginMd { margin: 16px; }
+        .marginSm { margin: 8px; }
+        .clickable { cursor: pointer; }
+        .rounded { border-radius: 8px; }
+        .roundedFull { border-radius: 50%; }
+
+        /* --- Animated Background for Chat --- */
+        @keyframes floatShapes {
+            0% { transform: translateY(0) rotate(0deg); opacity: 0.7; }
+            50% { transform: translateY(-20px) rotate(180deg); opacity: 0.5; }
+            100% { transform: translateY(0) rotate(360deg); opacity: 0.7; }
+        }
+
+        .animatedBackground {
+            position: relative;
+            overflow: hidden; /* Keep shapes inside */
+            background-color: #e5ddd5; /* Default chat background */
+        }
+
+        .animatedBackground::before,
+        .animatedBackground::after {
+            content: '';
+            position: absolute;
+            width: 150px;
+            height: 150px;
+            background-color: rgba(0, 90, 156, 0.1); /* Light Blue shape */
+            border-radius: 45%;
+            animation: floatShapes 25s infinite linear alternate;
+            z-index: 0; /* Behind messages */
+        }
+
+        .animatedBackground::before {
+            top: 10%;
+            left: 15%;
+            animation-duration: 30s;
+        }
+
+        .animatedBackground::after {
+            bottom: 15%;
+            right: 10%;
+            width: 100px;
+            height: 100px;
+            background-color: rgba(216, 0, 50, 0.1); /* Light Red shape */
+            animation: floatShapes 20s infinite linear;
+        }
+        /* Add more shapes if desired */
+
+
+        /* --- Login/Register Screen --- */
+        .authContainer {
+            max-width: 400px;
+            margin: 50px auto;
+        }
+
+        .authForm input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #ccd0d5; /* colorInputBorder */
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        .authForm button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        .authSwitchLink {
+            color: #005A9C; /* colorPrimary */
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .authSwitchLink:hover {
+            text-decoration: underline;
+        }
+        .errorMessage {
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+
+        /* --- Main Application Layout --- */
+        .appContainer {
+            height: 100vh; /* Full viewport height */
+            width: 100vw; /* Full viewport width */
+            overflow: hidden;
+        }
+
+        /* --- Desktop Layout (Default - Hidden on Mobile) --- */
+        .mainView {
+            display: flex;
+            height: 100%;
+        }
+
+        .sidebar {
+            width: 30%;
+            min-width: 300px;
+            max-width: 400px;
+            border-right: 1px solid #ccd0d5; /* colorInputBorder */
+            display: flex;
+            flex-direction: column;
+            background-color: #ffffff; /* colorBackground */
+        }
+
+        .contentArea {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #f0f2f5; /* colorBackgroundAccent */
+        }
+
+        .contentPlaceholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            color: #65676b; /* colorTextSecondary */
+        }
+         .contentPlaceholderLogo {
+             /* Placeholder for animated logo */
+             width: 150px;
+             height: 150px;
+             background-color: #005A9C; /* colorPrimary */
+             border-radius: 50%;
+             margin-bottom: 20px;
+             display: flex;
+             align-items: center;
+             justify-content: center;
+             color: white;
+             font-size: 40px;
+             font-weight: bold;
+             /* TODO: Add CSS animation here */
+         }
+
+
+        /* --- Mobile Layout (Overrides via Media Query) --- */
+        .mobileView {
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .mobileListScreen {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            background-color: #ffffff; /* colorBackground */
+        }
+
+        .mobileChatScreen {
+            display: none; /* Shown when a chat is active */
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            background-color: #f0f2f5; /* colorBackgroundAccent */
+        }
+
+
+        /* --- Sidebar / List Screen Components --- */
+        .listHeader {
+            padding: 10px 16px;
+            border-bottom: 1px solid #ccd0d5; /* colorInputBorder */
+            background-color: #f0f2f5; /* colorBackgroundAccent */
+        }
+
+        .listHeaderControls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .userProfilePicSmall {
+             width: 40px;
+             height: 40px;
+             background-color: #e4e6eb; /* colorButtonBgSecondary */
+             color: #65676b; /* colorTextSecondary */
+             display: flex;
+             align-items: center;
+             justify-content: center;
+             font-weight: bold;
+             margin-right: 10px;
+        }
+
+        .listHeaderIcons button {
+            background: none;
+            border: none;
+            font-size: 24px; /* Adjust size as needed */
+            color: #65676b; /* colorTextSecondary */
+            cursor: pointer;
+            margin-left: 15px;
+            padding: 5px;
+        }
+         .listHeaderIcons button:hover {
+             color: #1c1e21; /* colorTextPrimary */
+         }
+
+        .searchContainer {
+            padding: 8px 16px;
+            background-color: #f0f2f5; /* colorBackgroundAccent */
+            border-bottom: 1px solid #ccd0d5; /* colorInputBorder */
+        }
+        .searchContainer input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ccd0d5; /* colorInputBorder */
+            border-radius: 18px; /* Pill shape */
+            background-color: #ffffff; /* colorBackground */
+            font-size: 14px;
+        }
+         .searchContainer input::placeholder {
+             color: #65676b; /* colorTextSecondary */
+         }
+
+
+        .chatList {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .chatListItem {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f2f5; /* colorBackgroundAccent */
+            position: relative; /* For pinning/delete icons */
+        }
+        .chatListItem.pinned {
+            background-color: #e4e6eb; /* Slightly different background for pinned */
+        }
+        .chatListItem:hover {
+            background-color: #f0f2f5; /* colorBackgroundAccent */
+        }
+        .chatListItem.active {
+             background-color: #005A9C30; /* Light blue highlight */
+         }
+
+        .chatListItemContent {
+            flex-grow: 1;
+            margin-left: 12px;
+            overflow: hidden; /* Prevent long text overflow */
+        }
+
+        .chatListItemTop {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .chatListItemName {
+            font-weight: 600;
+            color: #1c1e21; /* colorTextPrimary */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chatListItemTimestamp {
+            font-size: 12px;
+            color: #65676b; /* colorTextSecondary */
+            white-space: nowrap;
+            margin-left: 8px;
+        }
+
+        .chatListItemBottom {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .chatListItemLastMessage {
+            font-size: 14px;
+            color: #65676b; /* colorTextSecondary */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex-grow: 1; /* Take available space */
+            padding-right: 5px; /* Space before unread count */
+        }
+         .chatListItemLastMessage .typingIndicator {
+             color: #005A9C; /* colorPrimary */
+             font-style: italic;
+         }
+
+        .chatListItemUnreadBadge {
+            background-color: #005A9C; /* colorPrimary */
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 10px;
+            min-width: 20px; /* Ensure circle shape for single digit */
+            text-align: center;
+        }
+
+        /* --- Chat Item Actions (Pin/Delete) --- */
+        .chatListItemActions {
+             position: absolute;
+             right: 5px;
+             top: 50%;
+             transform: translateY(-50%);
+             background-color: rgba(255, 255, 255, 0.9); /* Semi-transparent background */
+             border-radius: 4px;
+             padding: 2px;
+             display: none; /* Hidden by default */
+             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+         }
+         .chatListItem:hover .chatListItemActions {
+             display: flex; /* Show on hover */
+         }
+         .chatListItemActions button {
+             background: none;
+             border: none;
+             cursor: pointer;
+             padding: 4px;
+             margin: 0 2px;
+             font-size: 16px;
+             color: #65676b; /* colorTextSecondary */
+         }
+         .chatListItemActions button:hover {
+             color: #1c1e21; /* colorTextPrimary */
+         }
+
+
+        /* --- Chat Area / Content Area Components --- */
+        .chatHeader {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            background-color: #f0f2f5; /* colorBackgroundAccent */
+            border-bottom: 1px solid #ccd0d5; /* colorInputBorder */
+        }
+         .chatHeaderInfo {
+             display: flex;
+             align-items: center;
+             cursor: pointer;
+             flex-grow: 1; /* Allow name to take space */
+             overflow: hidden; /* Prevent long name overflow */
+             margin-left: 10px;
+             margin-right: 10px;
+         }
+         .chatHeaderName {
+             font-weight: 600;
+             margin-left: 12px;
+             white-space: nowrap;
+             overflow: hidden;
+             text-overflow: ellipsis;
+         }
+         .chatHeaderBackButton { /* Only for Mobile */
+             display: none; /* Hidden on Desktop */
+             background: none;
+             border: none;
+             font-size: 24px;
+             color: #005A9C; /* colorPrimary */
+             cursor: pointer;
+             margin-right: 10px;
+         }
+
+
+        .messageList {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 16px;
+            position: relative; /* Needed for animated background shapes */
+            z-index: 1; /* Ensure messages are above animated background */
+        }
+        .messageList > div { /* Direct children (message bubbles) */
+            margin-bottom: 8px;
+            display: flex;
+        }
+
+        .messageBubble {
+            max-width: 70%;
+            padding: 8px 12px;
+            border-radius: 12px;
+            position: relative; /* For timestamp/status */
+            word-wrap: break-word; /* Break long words */
+        }
+
+        .messageSent {
+            margin-left: auto; /* Align right */
+            background-color: #dcf8c6; /* colorSentMessage */
+            border-top-right-radius: 0; /* Pointy corner */
+        }
+        .messageSent .messageMeta {
+            text-align: right;
+            margin-top: 4px;
+        }
+
+        .messageReceived {
+            margin-right: auto; /* Align left */
+            background-color: #ffffff; /* colorReceivedMessage */
+            border-top-left-radius: 0; /* Pointy corner */
+            box-shadow: 0 1px 1px rgba(0,0,0,0.05);
+        }
+         .messageReceived .messageMeta {
+             text-align: left;
+             margin-top: 4px;
+         }
+
+        .messageText {
+            font-size: 15px;
+            color: #1c1e21; /* colorTextPrimary */
+            padding-right: 10px; /* Space for metadata */
+        }
+
+        .messageMeta {
+            font-size: 11px;
+            color: #65676b; /* colorTextSecondary */
+            margin-top: 4px; /* Space between text and meta */
+            display: flex;
+            align-items: center;
+            justify-content: flex-end; /* Default for sent */
+        }
+        .messageReceived .messageMeta {
+            justify-content: flex-start;
+        }
+
+        .messageTimestamp {
+             margin-right: 5px; /* Space between time and status */
+         }
+        .messageStatus {
+             font-size: 14px; /* Slightly larger status icon */
+         }
+        .messageStatus.sent { color: #65676b; } /* colorReadReceiptSent */
+        .messageStatus.read { color: #008080; } /* colorReadReceiptRead */
+
+        .typingIndicatorArea {
+            padding: 0 16px 5px 16px; /* Position above input */
+            font-size: 13px;
+            color: #65676b; /* colorTextSecondary */
+            font-style: italic;
+            height: 20px; /* Reserve space */
+        }
+
+
+        .chatInputArea {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            background-color: #f0f2f5; /* colorBackgroundAccent */
+            border-top: 1px solid #ccd0d5; /* colorInputBorder */
+        }
+
+        .chatInputArea button {
+            background: none;
+            border: none;
+            font-size: 24px; /* Adjust icon size */
+            color: #65676b; /* colorTextSecondary */
+            cursor: pointer;
+            padding: 8px;
+            margin: 0 5px; /* Spacing around icons */
+        }
+        .chatInputArea button:hover {
+            color: #1c1e21; /* colorTextPrimary */
+        }
+
+        .messageInput {
+            flex-grow: 1;
+            border: 1px solid #ccd0d5; /* colorInputBorder */
+            border-radius: 18px; /* Pill shape */
+            padding: 10px 15px;
+            font-size: 15px;
+            background-color: #ffffff; /* colorBackground */
+            resize: none; /* Prevent manual resize */
+            max-height: 100px; /* Limit input height expansion */
+            overflow-y: auto; /* Allow scrolling if text exceeds max-height */
+        }
+
+
+        /* --- Modals (Settings, New Chat, Profile Details) --- */
+        .modalOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000; /* Ensure modal is on top */
+        }
+
+        .modalContent {
+            background-color: #ffffff; /* colorBackground */
+            padding: 25px;
+            border-radius: 8px;
+            max-width: 90%;
+            width: 500px; /* Default max width */
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modalCloseButton {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #65676b; /* colorTextSecondary */
+            cursor: pointer;
+        }
+         .modalCloseButton:hover {
+             color: #1c1e21; /* colorTextPrimary */
+         }
+
+        .modalTitle {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #1c1e21; /* colorTextPrimary */
+        }
+
+        /* --- Settings Modal Specifics --- */
+        .settingsForm label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            font-size: 14px;
+            color: #1c1e21; /* colorTextPrimary */
+        }
+        .settingsForm input,
+        .settingsForm select,
+        .settingsForm textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccd0d5; /* colorInputBorder */
+            border-radius: 6px;
+            font-size: 15px;
+        }
+         .settingsForm textarea {
+             min-height: 80px;
+             resize: vertical;
+         }
+        .settingsProfilePicContainer {
+             display: flex;
+             align-items: center;
+             margin-bottom: 15px;
+         }
+        .settingsProfilePic {
+             width: 80px;
+             height: 80px;
+             background-color: #e4e6eb; /* colorButtonBgSecondary */
+             color: #65676b; /* colorTextSecondary */
+             display: flex;
+             align-items: center;
+             justify-content: center;
+             font-weight: bold;
+             font-size: 24px;
+             margin-right: 15px;
+             cursor: pointer; /* Indicate it's clickable */
+             position: relative; /* For overlay */
+             overflow: hidden; /* Ensure image fits */
+         }
+         .settingsProfilePic img {
+             width: 100%;
+             height: 100%;
+             object-fit: cover;
+         }
+         .settingsProfilePic .editOverlay {
+             position: absolute;
+             bottom: 0;
+             left: 0;
+             width: 100%;
+             background-color: rgba(0, 0, 0, 0.5);
+             color: white;
+             text-align: center;
+             font-size: 12px;
+             padding: 3px 0;
+             opacity: 0;
+             transition: opacity 0.2s ease-in-out;
+         }
+         .settingsProfilePic:hover .editOverlay {
+             opacity: 1;
+         }
+
+        .settingsForm button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .settingsForm .saveButton {
+             background-color: #005A9C; /* colorPrimary */
+             color: white;
+         }
+         .settingsForm .logoutButton {
+             background-color: #D80032; /* colorSecondary */
+             color: white;
+             float: right; /* Position logout to the right */
+         }
+
+
+        /* --- New Chat / User List Modal Specifics --- */
+        .userSearchInput {
+             width: 100%;
+             padding: 10px 12px;
+             margin-bottom: 15px;
+             border: 1px solid #ccd0d5; /* colorInputBorder */
+             border-radius: 18px; /* Pill shape */
+             font-size: 14px;
+         }
+        .userListItem {
+             display: flex;
+             align-items: center;
+             padding: 10px 0;
+             cursor: pointer;
+             border-bottom: 1px solid #f0f2f5; /* colorBackgroundAccent */
+         }
+         .userListItem:last-child {
+             border-bottom: none;
+         }
+         .userListItem:hover {
+             background-color: #f0f2f5; /* colorBackgroundAccent */
+         }
+         .userListItem .userProfilePicSmall { /* Re-use small profile pic class */
+             margin-right: 12px;
+         }
+         .userListItemName {
+             font-weight: 500;
+             color: #1c1e21; /* colorTextPrimary */
+         }
+
+        /* --- Profile Details Modal Specifics --- */
+        .profileDetailsContent {
+            text-align: center;
+        }
+        .profileDetailsPic {
+            width: 120px;
+            height: 120px;
+            background-color: #e4e6eb; /* colorButtonBgSecondary */
+            color: #65676b; /* colorTextSecondary */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 30px;
+            margin: 0 auto 15px auto; /* Center horizontally */
+            overflow: hidden; /* Ensure image fits */
+        }
+         .profileDetailsPic img {
+             width: 100%;
+             height: 100%;
+             object-fit: cover;
+         }
+        .profileDetailsName {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .profileDetailsInfo p {
+            margin-bottom: 8px;
+            font-size: 15px;
+            color: #65676b; /* colorTextSecondary */
+        }
+        .profileDetailsInfo strong {
+            color: #1c1e21; /* colorTextPrimary */
+            margin-right: 5px;
+        }
+
+
+        /* --- Responsive Breakpoint --- */
+        @media (max-width: 768px) {
+            .mainView {
+                display: none; /* Hide desktop view */
+            }
+            .mobileView {
+                display: flex; /* Show mobile view */
+            }
+            .sidebar { /* Sidebar becomes the main list screen */
+                width: 100%;
+                max-width: none;
+                border-right: none;
+            }
+            .contentArea { /* Content area is hidden initially */
+                display: none;
+            }
+             .chatHeaderBackButton {
+                 display: inline-block; /* Show back button on mobile chat header */
+             }
+             .modalContent {
+                 width: 90%; /* Smaller modals on mobile */
+             }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="authScreen" class="authContainer">
+        <div id="loginForm" class="authForm colorBackground paddingMd rounded">
+            <h2 class="textCenter marginMd colorTextPrimary">Login</h2>
+            <div id="loginError" class="errorMessage colorError textCenter"></div>
+            <input type="email" id="loginEmail" placeholder="Email" required>
+            <input type="password" id="loginPassword" placeholder="Password" required>
+            <button id="loginButton" class="colorButtonBg">Login</button>
+            <p class="textCenter"><a href="#" id="switchToRegister" class="authSwitchLink">Don't have an account? Register</a></p>
+        </div>
+
+        <div id="registerForm" class="authForm colorBackground paddingMd rounded hidden">
+            <h2 class="textCenter marginMd colorTextPrimary">Register</h2>
+            <div id="registerError" class="errorMessage colorError textCenter"></div>
+            <input type="text" id="registerName" placeholder="Full Name" required>
+            <input type="email" id="registerEmail" placeholder="Email" required>
+            <input type="password" id="registerPassword" placeholder="Password" required>
+            <button id="registerButton" class="colorButtonBg">Register</button>
+            <p class="textCenter"><a href="#" id="switchToLogin" class="authSwitchLink">Already have an account? Login</a></p>
+        </div>
+    </div>
+
+    <div id="appScreen" class="appContainer hidden">
+
+        <div class="mainView">
+            <div id="desktopSidebar" class="sidebar">
+                <div class="listHeader">
+                    <div class="listHeaderControls">
+                        <div id="currentUserProfilePicSmall" class="userProfilePicSmall roundedFull clickable">U</div> <div class="listHeaderIcons">
+                            <button id="newChatButtonDesktop" title="New Chat">+</button>
+                            <button id="settingsButtonDesktop" title="Settings">⚙</button> </div>
+                    </div>
+                </div>
+                 <div class="searchContainer">
+                     <input type="text" id="chatListSearchDesktop" placeholder="Search chats...">
+                 </div>
+                <div id="chatListDesktop" class="chatList">
+                    </div>
+            </div>
+
+            <div id="desktopContentArea" class="contentArea">
+                <div id="contentPlaceholder" class="contentPlaceholder">
+                    <div class="contentPlaceholderLogo">BRB</div> <h2>Welcome to BlueRedBlack Chat</h2>
+                    <p>Select a chat to start messaging.</p>
+                </div>
+
+                <div id="chatWindowDesktop" class="flexContainer flexColumn fullHeight hidden">
+                    <div class="chatHeader">
+                        <div id="chatPartnerInfoDesktop" class="chatHeaderInfo clickable">
+                            <div id="chatPartnerProfilePicDesktop" class="userProfilePicSmall roundedFull">P</div>
+                            <span id="chatPartnerNameDesktop" class="chatHeaderName">Partner Name</span>
+                        </div>
+                        </div>
+                     <div id="typingIndicatorDesktop" class="typingIndicatorArea"></div>
+                    <div id="messageListDesktop" class="messageList animatedBackground">
+                        </div>
+                    <div class="chatInputArea">
+                        <button id="emojiButtonDesktop" title="Emoji">😊</button> <textarea id="messageInputDesktop" class="messageInput" placeholder="Type a message..." rows="1"></textarea>
+                        <button id="sendMessageButtonDesktop" title="Send">➢</button> </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="mobileView">
+             <div id="mobileListScreen" class="mobileListScreen">
+                 <div class="listHeader">
+                     <div class="listHeaderControls">
+                         <div id="currentUserProfilePicSmallMobile" class="userProfilePicSmall roundedFull clickable">U</div>
+                         <div class="listHeaderIcons">
+                            <button id="newChatButtonMobile" title="New Chat">+</button>
+                             <button id="settingsButtonMobile" title="Settings">⚙</button>
+                         </div>
+                     </div>
+                 </div>
+                  <div class="searchContainer">
+                      <input type="text" id="chatListSearchMobile" placeholder="Search chats...">
+                  </div>
+                 <div id="chatListMobile" class="chatList">
+                     </div>
+             </div>
+
+             <div id="mobileChatScreen" class="mobileChatScreen hidden">
+                 <div class="chatHeader">
+                     <button id="backButtonMobile" class="chatHeaderBackButton" title="Back">←</button>
+                     <div id="chatPartnerInfoMobile" class="chatHeaderInfo clickable">
+                         <div id="chatPartnerProfilePicMobile" class="userProfilePicSmall roundedFull">P</div>
+                         <span id="chatPartnerNameMobile" class="chatHeaderName">Partner Name</span>
+                     </div>
+                 </div>
+                  <div id="typingIndicatorMobile" class="typingIndicatorArea"></div>
+                 <div id="messageListMobile" class="messageList animatedBackground">
+                     </div>
+                 <div class="chatInputArea">
+                     <button id="emojiButtonMobile" title="Emoji">😊</button>
+                     <textarea id="messageInputMobile" class="messageInput" placeholder="Type a message..." rows="1"></textarea>
+                     <button id="sendMessageButtonMobile" title="Send">➢</button>
+                 </div>
+             </div>
+         </div>
+
+    </div> <div id="settingsModal" class="modalOverlay hidden">
+        <div class="modalContent">
+            <button class="modalCloseButton" onclick="closeModal('settingsModal')">×</button>
+            <h3 class="modalTitle">Settings</h3>
+            <form id="settingsForm" class="settingsForm">
+                 <div class="settingsProfilePicContainer">
+                      <div id="settingsProfilePicPreview" class="settingsProfilePic roundedFull clickable" title="Click to change (enter URL)">
+                           {/* */}
+                           U
+                           <div class="editOverlay">Edit</div>
+                       </div>
+                      <input type="file" id="profilePicUpload" class="hidden" accept="image/*"> {/* Hidden file input */}
+                      <input type="text" id="profilePicUrlInput" placeholder="Or enter Image URL (temp)"> {/* Temp URL input */}
+                 </div>
+                <label for="settingsName">Name</label>
+                <input type="text" id="settingsName" required>
+
+                <label for="settingsGender">Gender</label>
+                <select id="settingsGender">
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                    <option value="prefer_not_to_say">Prefer not to say</option>
+                </select>
+
+                <label for="settingsInfo">Status Info</label>
+                <select id="settingsInfo">
+                    <option value="available">Available</option>
+                    <option value="busy">Busy</option>
+                    <option value="at_work">At Work</option>
+                    <option value="in_a_meeting">In a meeting</option>
+                    <option value="sleeping">Sleeping</option>
+                    {/* Add more predefined options */}
+                </select>
+
+                <label for="settingsDescription">Description</label>
+                <textarea id="settingsDescription" placeholder="Write something about yourself..."></textarea>
+
+                <div class="errorMessage colorError" id="settingsError"></div>
+
+                <button type="submit" class="saveButton colorButtonBg">Save Changes</button>
+                <button type="button" id="logoutButton" class="logoutButton">Logout</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="newChatModal" class="modalOverlay hidden">
+        <div class="modalContent">
+            <button class="modalCloseButton" onclick="closeModal('newChatModal')">×</button>
+            <h3 class="modalTitle">Start New Chat</h3>
+            <input type="text" id="userSearchInput" class="userSearchInput" placeholder="Search users...">
+            <div id="userList" class="userList">
+                </div>
+        </div>
+    </div>
+
+     <div id="profileDetailsModal" class="modalOverlay hidden">
+         <div class="modalContent profileDetailsContent">
+             <button class="modalCloseButton" onclick="closeModal('profileDetailsModal')">×</button>
+             <div id="profileDetailsPic" class="profileDetailsPic roundedFull">
+                 {/* */}
+                 P
+             </div>
+             <h3 id="profileDetailsName" class="profileDetailsName">Partner Name</h3>
+             <div class="profileDetailsInfo">
+                 <p><strong>Gender:</strong> <span id="profileDetailsGender">...</span></p>
+                 <p><strong>Status:</strong> <span id="profileDetailsInfo">...</span></p>
+                 <p><strong>Description:</strong> <span id="profileDetailsDescription">...</span></p>
+             </div>
+         </div>
+     </div>
+
+
+    <script>
+        // --- Firebase Configuration ---
+        const firebaseConfig = {
+          apiKey: "YOUR_API_KEY", // IMPORTANT: Replace with your actual API Key
+          authDomain: "YOUR_AUTH_DOMAIN", // Replace with your details
+          databaseURL: "YOUR_DATABASE_URL",
+          projectId: "YOUR_PROJECT_ID",
+          storageBucket: "YOUR_STORAGE_BUCKET",
+          messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+          appId: "YOUR_APP_ID",
+          measurementId: "YOUR_MEASUREMENT_ID" // Optional
+        };
+
+        // --- Initialize Firebase ---
+        // Use compat libraries for simpler syntax as per v9 example structure
+        firebase.initializeApp(firebaseConfig);
+        const fbAuth = firebase.auth();
+        const fbDb = firebase.database();
+        // const fbStorage = firebase.storage(); // Uncomment if using Storage for uploads
+
+        // --- Global State ---
+        let currentUser = null;
+        let currentChatId = null;
+        let currentPartnerId = null;
+        let chatListeners = {}; // To keep track of active listeners
+        let userChats = {}; // Cache user's chat list metadata
+        let usersCache = {}; // Cache for user profile data
+
+        // --- DOM Element References ---
+        // Auth
+        const authScreen = document.getElementById('authScreen');
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+        const loginEmailInput = document.getElementById('loginEmail');
+        const loginPasswordInput = document.getElementById('loginPassword');
+        const loginButton = document.getElementById('loginButton');
+        const loginError = document.getElementById('loginError');
+        const registerNameInput = document.getElementById('registerName');
+        const registerEmailInput = document.getElementById('registerEmail');
+        const registerPasswordInput = document.getElementById('registerPassword');
+        const registerButton = document.getElementById('registerButton');
+        const registerError = document.getElementById('registerError');
+        const switchToRegisterLink = document.getElementById('switchToRegister');
+        const switchToLoginLink = document.getElementById('switchToLogin');
+
+        // App Screen
+        const appScreen = document.getElementById('appScreen');
+
+        // Desktop View Elements
+        const desktopSidebar = document.getElementById('desktopSidebar');
+        const desktopContentArea = document.getElementById('desktopContentArea');
+        const currentUserProfilePicSmall = document.getElementById('currentUserProfilePicSmall');
+        const newChatButtonDesktop = document.getElementById('newChatButtonDesktop');
+        const settingsButtonDesktop = document.getElementById('settingsButtonDesktop');
+        const chatListSearchDesktop = document.getElementById('chatListSearchDesktop');
+        const chatListDesktop = document.getElementById('chatListDesktop');
+        const contentPlaceholder = document.getElementById('contentPlaceholder');
+        const chatWindowDesktop = document.getElementById('chatWindowDesktop');
+        const chatPartnerInfoDesktop = document.getElementById('chatPartnerInfoDesktop');
+        const chatPartnerProfilePicDesktop = document.getElementById('chatPartnerProfilePicDesktop');
+        const chatPartnerNameDesktop = document.getElementById('chatPartnerNameDesktop');
+        const typingIndicatorDesktop = document.getElementById('typingIndicatorDesktop');
+        const messageListDesktop = document.getElementById('messageListDesktop');
+        const emojiButtonDesktop = document.getElementById('emojiButtonDesktop');
+        const messageInputDesktop = document.getElementById('messageInputDesktop');
+        const sendMessageButtonDesktop = document.getElementById('sendMessageButtonDesktop');
+
+        // Mobile View Elements
+        const mobileView = document.querySelector('.mobileView'); // Gets the container
+        const mobileListScreen = document.getElementById('mobileListScreen');
+        const mobileChatScreen = document.getElementById('mobileChatScreen');
+        const currentUserProfilePicSmallMobile = document.getElementById('currentUserProfilePicSmallMobile');
+        const newChatButtonMobile = document.getElementById('newChatButtonMobile');
+        const settingsButtonMobile = document.getElementById('settingsButtonMobile');
+        const chatListSearchMobile = document.getElementById('chatListSearchMobile');
+        const chatListMobile = document.getElementById('chatListMobile');
+        const backButtonMobile = document.getElementById('backButtonMobile');
+        const chatPartnerInfoMobile = document.getElementById('chatPartnerInfoMobile');
+        const chatPartnerProfilePicMobile = document.getElementById('chatPartnerProfilePicMobile');
+        const chatPartnerNameMobile = document.getElementById('chatPartnerNameMobile');
+        const typingIndicatorMobile = document.getElementById('typingIndicatorMobile');
+        const messageListMobile = document.getElementById('messageListMobile');
+        const emojiButtonMobile = document.getElementById('emojiButtonMobile');
+        const messageInputMobile = document.getElementById('messageInputMobile');
+        const sendMessageButtonMobile = document.getElementById('sendMessageButtonMobile');
+
+        // Modals
+        const settingsModal = document.getElementById('settingsModal');
+        const newChatModal = document.getElementById('newChatModal');
+        const profileDetailsModal = document.getElementById('profileDetailsModal');
+        const settingsForm = document.getElementById('settingsForm');
+        const settingsProfilePicPreview = document.getElementById('settingsProfilePicPreview');
+        const profilePicUploadInput = document.getElementById('profilePicUpload'); // File input
+        const profilePicUrlInput = document.getElementById('profilePicUrlInput'); // Temp URL input
+        const settingsNameInput = document.getElementById('settingsName');
+        const settingsGenderSelect = document.getElementById('settingsGender');
+        const settingsInfoSelect = document.getElementById('settingsInfo');
+        const settingsDescriptionTextarea = document.getElementById('settingsDescription');
+        const settingsError = document.getElementById('settingsError');
+        const logoutButton = document.getElementById('logoutButton');
+        const userSearchInput = document.getElementById('userSearchInput');
+        const userListContainer = document.getElementById('userList'); // Container in New Chat modal
+        // Profile Details Modal Elements
+        const profileDetailsPic = document.getElementById('profileDetailsPic');
+        const profileDetailsName = document.getElementById('profileDetailsName');
+        const profileDetailsGender = document.getElementById('profileDetailsGender');
+        const profileDetailsInfo = document.getElementById('profileDetailsInfo');
+        const profileDetailsDescription = document.getElementById('profileDetailsDescription');
+
+
+        // --- Helper Functions ---
+        function showScreen(screenToShow) {
+            authScreen.classList.add('hidden');
+            appScreen.classList.add('hidden');
+
+            if (screenToShow === 'auth') {
+                authScreen.classList.remove('hidden');
+            } else if (screenToShow === 'app') {
+                appScreen.classList.remove('hidden');
+            }
+        }
+
+        function switchAuthForm(showRegister) {
+            loginError.textContent = '';
+            registerError.textContent = '';
+            if (showRegister) {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+            } else {
+                registerForm.classList.add('hidden');
+                loginForm.classList.remove('hidden');
+            }
+        }
+
+        function displayAuthError(formType, message) {
+            if (formType === 'login') {
+                loginError.textContent = message;
+            } else if (formType === 'register') {
+                registerError.textContent = message;
+            }
+        }
+         function displaySettingsError(message) {
+             settingsError.textContent = message;
+         }
+
+        function openModal(modalId) {
+             const modal = document.getElementById(modalId);
+             if (modal) {
+                 modal.classList.remove('hidden');
+             }
+         }
+
+         function closeModal(modalId) {
+             const modal = document.getElementById(modalId);
+             if (modal) {
+                 modal.classList.add('hidden');
+             }
+             // Clear potential error messages when closing
+             if (modalId === 'settingsModal') displaySettingsError('');
+         }
+
+         // Format timestamp (simple example)
+         function formatTimestamp(timestamp) {
+             if (!timestamp) return '';
+             const date = new Date(timestamp);
+             const today = new Date();
+             const yesterday = new Date(today);
+             yesterday.setDate(yesterday.getDate() - 1);
+
+             if (date.toDateString() === today.toDateString()) {
+                 // Time only for today
+                 return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+             } else if (date.toDateString() === yesterday.toDateString()) {
+                 // "Yesterday"
+                 return 'Yesterday';
+             } else {
+                 // DD/MM/YYYY for older dates
+                 const day = String(date.getDate()).padStart(2, '0');
+                 const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+                 const year = date.getFullYear();
+                 return `${day}/${month}/${year}`;
+             }
+         }
+
+         // Get initials from name
+         function getInitials(name) {
+             if (!name) return '?';
+             const names = name.trim().split(' ');
+             if (names.length === 1) return names[0].charAt(0).toUpperCase();
+             return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
+         }
+
+         // Generate a chat ID based on two user IDs (consistent order)
+         function generateChatId(uid1, uid2) {
+             return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
+         }
+
+         // Scroll message list to bottom
+         function scrollToBottom(element) {
+             if (element) {
+                 element.scrollTop = element.scrollHeight;
+             }
+         }
+
+         // Update User Profile Picture Placeholders
+         function updateUserProfilePic(element, url, name) {
+             element.innerHTML = ''; // Clear initials
+             if (url) {
+                 const img = document.createElement('img');
+                 img.src = url;
+                 img.alt = name || 'Profile';
+                 img.onerror = () => { // Fallback if image fails to load
+                     element.textContent = getInitials(name);
+                 };
+                 element.appendChild(img);
+             } else {
+                 element.textContent = getInitials(name);
+             }
+         }
+
+         // Update UI State for Mobile View
+         function showMobileScreen(screenName) {
+             if (screenName === 'list') {
+                 mobileListScreen.classList.remove('hidden');
+                 mobileChatScreen.classList.add('hidden');
+             } else if (screenName === 'chat') {
+                 mobileListScreen.classList.add('hidden');
+                 mobileChatScreen.classList.remove('hidden');
+             }
+         }
+
+        // --- Authentication Logic ---
+        fbAuth.onAuthStateChanged(user => {
+            if (user) {
+                currentUser = user;
+                console.log("User logged in:", currentUser.uid);
+                fetchUserProfile(currentUser.uid); // Fetch profile on login
+                showScreen('app');
+                initializeChatList();
+            } else {
+                currentUser = null;
+                console.log("User logged out");
+                cleanupListeners(); // Stop listening to DB changes on logout
+                resetUI();
+                showScreen('auth');
+            }
+        });
+
+        loginButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            const email = loginEmailInput.value;
+            const password = loginPasswordInput.value;
+            loginError.textContent = ''; // Clear previous error
+
+            fbAuth.signInWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    // Signed in
+                    console.log("Login successful", userCredential.user);
+                    // onAuthStateChanged will handle UI switch
+                })
+                .catch((error) => {
+                    console.error("Login error:", error);
+                    displayAuthError('login', error.message);
+                });
+        });
+
+        registerButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            const name = registerNameInput.value;
+            const email = registerEmailInput.value;
+            const password = registerPasswordInput.value;
+            registerError.textContent = ''; // Clear previous error
+
+            if (!name) {
+                displayAuthError('register', 'Please enter your name.');
+                return;
+            }
+
+            fbAuth.createUserWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    // Signed in
+                    console.log("Registration successful", userCredential.user);
+                    // Create user profile in database
+                    const userProfile = {
+                        uid: userCredential.user.uid,
+                        name: name,
+                        email: email,
+                        profilePicUrl: null,
+                        gender: 'prefer_not_to_say',
+                        info: 'available',
+                        description: '',
+                        createdAt: firebase.database.ServerValue.TIMESTAMP
+                    };
+                    fbDb.ref('users/' + userCredential.user.uid).set(userProfile)
+                        .then(() => {
+                            console.log("User profile created in DB");
+                            // onAuthStateChanged will handle UI switch
+                        })
+                        .catch(dbError => {
+                            console.error("Error creating profile in DB:", dbError);
+                            // User is created in Auth, but profile failed. Handle this case.
+                            displayAuthError('register', 'Registration succeeded but failed to save profile.');
+                        });
+                })
+                .catch((error) => {
+                    console.error("Registration error:", error);
+                    displayAuthError('register', error.message);
+                });
+        });
+
+        switchToRegisterLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchAuthForm(true);
+        });
+
+        switchToLoginLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchAuthForm(false);
+        });
+
+        logoutButton.addEventListener('click', () => {
+            fbAuth.signOut().then(() => {
+                console.log('Logout successful');
+                closeModal('settingsModal'); // Close modal on logout
+                // onAuthStateChanged handles UI reset
+            }).catch(error => {
+                console.error('Logout error:', error);
+                displaySettingsError("Logout failed: " + error.message);
+            });
+        });
+
+        // --- Profile Management ---
+
+        // Fetch user profile data (and cache it)
+        async function fetchUserProfile(userId, forceRefresh = false) {
+            if (!forceRefresh && usersCache[userId]) {
+                return usersCache[userId];
+            }
+            try {
+                const snapshot = await fbDb.ref('users/' + userId).once('value');
+                if (snapshot.exists()) {
+                    const profile = snapshot.val();
+                    usersCache[userId] = profile; // Cache the profile
+                    // Update UI elements if this is the current user
+                    if (currentUser && userId === currentUser.uid) {
+                        settingsNameInput.value = profile.name || '';
+                        settingsGenderSelect.value = profile.gender || 'prefer_not_to_say';
+                        settingsInfoSelect.value = profile.info || 'available';
+                        settingsDescriptionTextarea.value = profile.description || '';
+                        profilePicUrlInput.value = profile.profilePicUrl || ''; // Temp URL input
+                        // Update profile pics in UI
+                        updateUserProfilePic(currentUserProfilePicSmall, profile.profilePicUrl, profile.name);
+                        updateUserProfilePic(currentUserProfilePicSmallMobile, profile.profilePicUrl, profile.name);
+                        updateUserProfilePic(settingsProfilePicPreview, profile.profilePicUrl, profile.name);
+                    }
+                    return profile;
+                } else {
+                    console.warn("User profile not found for:", userId);
+                    return null; // Indicate profile not found
+                }
+            } catch (error) {
+                console.error("Error fetching user profile:", error);
+                return null;
+            }
+        }
+
+
+        // Event listeners for settings/profile buttons
+        settingsButtonDesktop.addEventListener('click', () => openModal('settingsModal'));
+        settingsButtonMobile.addEventListener('click', () => openModal('settingsModal'));
+        // Trigger profile fetch when opening settings
+        settingsModal.addEventListener('transitionend', () => {
+             if (!settingsModal.classList.contains('hidden') && currentUser) {
+                 fetchUserProfile(currentUser.uid, true); // Refresh data when modal opens
+             }
+         });
+
+        // Handle settings form submission
+        settingsForm.addEventListener('submit', (e) => {
+             e.preventDefault();
+             if (!currentUser) return;
+             displaySettingsError(''); // Clear previous errors
+
+             const updates = {
+                 name: settingsNameInput.value.trim(),
+                 gender: settingsGenderSelect.value,
+                 info: settingsInfoSelect.value,
+                 description: settingsDescriptionTextarea.value.trim(),
+                 // Handle profile pic URL (simple URL input for now)
+                 profilePicUrl: profilePicUrlInput.value.trim() || null
+             };
+
+             // TODO: Implement actual file upload using Firebase Storage if needed
+             // This would involve uploading the file selected via profilePicUploadInput,
+             // getting the download URL, and saving *that* URL in the 'updates'.
+
+             fbDb.ref('users/' + currentUser.uid).update(updates)
+                 .then(() => {
+                     console.log("Profile updated successfully");
+                     usersCache[currentUser.uid] = { ...usersCache[currentUser.uid], ...updates }; // Update cache
+                     // Update UI elements immediately
+                     updateUserProfilePic(currentUserProfilePicSmall, updates.profilePicUrl, updates.name);
+                     updateUserProfilePic(currentUserProfilePicSmallMobile, updates.profilePicUrl, updates.name);
+                     updateUserProfilePic(settingsProfilePicPreview, updates.profilePicUrl, updates.name);
+                     closeModal('settingsModal');
+                 })
+                 .catch(error => {
+                     console.error("Error updating profile:", error);
+                     displaySettingsError("Failed to save changes: " + error.message);
+                 });
+         });
+
+         // Basic handling for clicking profile pic in settings (for URL input)
+         settingsProfilePicPreview.addEventListener('click', () => {
+             // Option 1: Trigger hidden file input (if implementing file upload)
+             // profilePicUploadInput.click();
+
+             // Option 2: Focus the URL input (simple approach)
+             profilePicUrlInput.focus();
+             alert("Profile picture update: Please enter an image URL in the input field below. (File upload not implemented in this example).");
+         });
+         // TODO: Add event listener for profilePicUploadInput 'change' event if implementing file upload.
+
+
+        // --- Chat List Logic ---
+        function initializeChatList() {
+            if (!currentUser) return;
+            const userChatsRef = fbDb.ref(`userChats/${currentUser.uid}`);
+
+            // Detach previous listener if any
+            if (chatListeners.userChats) {
+                chatListeners.userChats.off();
+            }
+
+            // Listen for changes in the user's chat list
+            chatListeners.userChats = userChatsRef.orderByChild('timestamp').limitToLast(50); // Order by last message time, limit count
+            chatListeners.userChats.on('value', snapshot => {
+                userChats = snapshot.val() || {};
+                console.log("User chats updated:", userChats);
+                renderChatList();
+            });
+        }
+
+        async function renderChatList() {
+             if (!currentUser) return;
+             chatListDesktop.innerHTML = ''; // Clear lists
+             chatListMobile.innerHTML = '';
+
+             const chatIds = Object.keys(userChats);
+             // Sort chats by timestamp (descending - newest first)
+             chatIds.sort((a, b) => (userChats[b]?.timestamp || 0) - (userChats[a]?.timestamp || 0));
+
+             // Filter based on search input
+             const searchTermDesktop = chatListSearchDesktop.value.toLowerCase();
+             const searchTermMobile = chatListSearchMobile.value.toLowerCase();
+
+             for (const chatId of chatIds) {
+                 const chatData = userChats[chatId];
+                 if (!chatData || !chatData.partnerId) continue;
+
+                 // Fetch partner profile (use cache)
+                 const partnerProfile = await fetchUserProfile(chatData.partnerId);
+                 if (!partnerProfile) continue; // Skip if partner profile not found
+
+                 // Check against search terms
+                 const partnerNameLower = (partnerProfile.name || '').toLowerCase();
+                 if ((searchTermDesktop && !partnerNameLower.includes(searchTermDesktop)) &&
+                     (searchTermMobile && !partnerNameLower.includes(searchTermMobile))) {
+                     continue; // Skip if doesn't match search in either view
+                 }
+
+                 const listItem = createChatListItem(chatId, chatData, partnerProfile);
+
+                 // Append to both desktop and mobile lists
+                 chatListDesktop.appendChild(listItem.cloneNode(true)); // Clone for the second list
+                 chatListMobile.appendChild(listItem); // Append original to mobile
+             }
+
+            // Add event listeners after rendering (use event delegation on parent)
+            setupChatListClickListeners();
+         }
+
+         function createChatListItem(chatId, chatData, partnerProfile) {
+             const item = document.createElement('div');
+             item.classList.add('chatListItem');
+             item.dataset.chatId = chatId;
+             item.dataset.partnerId = chatData.partnerId;
+             if (chatData.pinned) {
+                 item.classList.add('pinned'); // Add pinned class if applicable
+             }
+              if (chatId === currentChatId) {
+                 item.classList.add('active'); // Highlight active chat
+             }
+
+
+             // Profile Pic
+             const pic = document.createElement('div');
+             pic.classList.add('userProfilePicSmall', 'roundedFull');
+             updateUserProfilePic(pic, partnerProfile.profilePicUrl, partnerProfile.name);
+
+             // Content Area
+             const content = document.createElement('div');
+             content.classList.add('chatListItemContent');
+
+             const topRow = document.createElement('div');
+             topRow.classList.add('chatListItemTop');
+             const nameSpan = document.createElement('span');
+             nameSpan.classList.add('chatListItemName');
+             nameSpan.textContent = partnerProfile.name || 'Unknown User';
+             const timeSpan = document.createElement('span');
+             timeSpan.classList.add('chatListItemTimestamp');
+             timeSpan.textContent = formatTimestamp(chatData.timestamp);
+             topRow.appendChild(nameSpan);
+             topRow.appendChild(timeSpan);
+
+             const bottomRow = document.createElement('div');
+             bottomRow.classList.add('chatListItemBottom');
+             const lastMsgSpan = document.createElement('span');
+             lastMsgSpan.classList.add('chatListItemLastMessage');
+             // Display typing indicator if applicable (requires real-time listener)
+             if (chatData.partnerTyping) {
+                lastMsgSpan.innerHTML = `<span class="typingIndicator">typing...</span>`;
+             } else {
+                 lastMsgSpan.textContent = chatData.lastMessage || '';
+             }
+             const unreadBadge = document.createElement('span');
+             unreadBadge.classList.add('chatListItemUnreadBadge');
+             // TODO: Implement unread count logic based on lastReadTimestamp
+             unreadBadge.textContent = '0'; // Placeholder
+             unreadBadge.classList.add('hidden'); // Hide initially
+
+             bottomRow.appendChild(lastMsgSpan);
+             bottomRow.appendChild(unreadBadge); // Add badge even if hidden
+
+             content.appendChild(topRow);
+             content.appendChild(bottomRow);
+
+             // Actions (Pin/Delete) - Example structure
+             const actions = document.createElement('div');
+             actions.classList.add('chatListItemActions');
+             const pinButton = document.createElement('button');
+             pinButton.classList.add('pinChatButton');
+             pinButton.title = chatData.pinned ? 'Unpin' : 'Pin';
+             pinButton.innerHTML = chatData.pinned ? '📌' : '📍'; // Different icons for pinned state
+             pinButton.onclick = (e) => { e.stopPropagation(); togglePinChat(chatId, !chatData.pinned); };
+             const deleteButton = document.createElement('button');
+             deleteButton.classList.add('deleteChatButton');
+             deleteButton.title = 'Delete Chat';
+             deleteButton.innerHTML = '🗑️';
+             deleteButton.onclick = (e) => { e.stopPropagation(); deleteChat(chatId); };
+             actions.appendChild(pinButton);
+             actions.appendChild(deleteButton);
+
+
+             item.appendChild(pic);
+             item.appendChild(content);
+             item.appendChild(actions);
+
+             return item;
+         }
+
+         // Use event delegation for chat list item clicks
+         function setupChatListClickListeners() {
+             [chatListDesktop, chatListMobile].forEach(list => {
+                 // Remove previous listener to avoid duplicates if function is called multiple times
+                 list.removeEventListener('click', handleChatListItemClick);
+                 // Add the new listener
+                 list.addEventListener('click', handleChatListItemClick);
+             });
+         }
+
+         function handleChatListItemClick(event) {
+             const listItem = event.target.closest('.chatListItem');
+             if (listItem && listItem.dataset.chatId) {
+                 const chatId = listItem.dataset.chatId;
+                 const partnerId = listItem.dataset.partnerId;
+                 openChat(chatId, partnerId);
+
+                 // Highlight the selected item (remove from others first)
+                  [...chatListDesktop.querySelectorAll('.chatListItem.active'),
+                   ...chatListMobile.querySelectorAll('.chatListItem.active')]
+                      .forEach(item => item.classList.remove('active'));
+                 // Add active class to the clicked item in both lists (if they exist)
+                  const activeItems = document.querySelectorAll(`.chatListItem[data-chat-id="${chatId}"]`);
+                  activeItems.forEach(item => item.classList.add('active'));
+
+             }
+         }
+
+         // Search functionality
+         chatListSearchDesktop.addEventListener('input', renderChatList);
+         chatListSearchMobile.addEventListener('input', renderChatList);
+
+
+         // --- Pin/Delete Chat Actions ---
+         function togglePinChat(chatId, shouldPin) {
+             if (!currentUser || !chatId) return;
+             console.log(`${shouldPin ? 'Pinning' : 'Unpinning'} chat: ${chatId}`);
+             const chatRef = fbDb.ref(`userChats/${currentUser.uid}/${chatId}`);
+             chatRef.update({ pinned: shouldPin })
+                 .then(() => console.log(`Chat ${chatId} ${shouldPin ? 'pinned' : 'unpinned'}`))
+                 .catch(error => console.error(`Error ${shouldPin ? 'pinning' : 'unpinning'} chat:`, error));
+             // UI will update via the 'value' listener on userChats
+         }
+
+         function deleteChat(chatId) {
+             if (!currentUser || !chatId) return;
+             // Confirmation dialog
+             if (!confirm("Are you sure you want to delete this chat? This action cannot be undone.")) {
+                 return;
+             }
+             console.log(`Deleting chat: ${chatId}`);
+
+             // TODO: Implement chat deletion logic. This is complex:
+             // 1. Remove the chat entry from the current user's `userChats/{uid}/{chatId}`.
+             // 2. Optionally: Remove it from the partner's `userChats/{partnerId}/{chatId}` as well? (Depends on desired behavior).
+             // 3. Optionally: Delete the actual messages in `chats/{chatId}`? This might affect the other user if they haven't deleted it. Consider marking as deleted instead of fully removing.
+             // 4. Handle cleanup of listeners associated with the deleted chat.
+
+             // Simple deletion from current user's list:
+             const chatRef = fbDb.ref(`userChats/${currentUser.uid}/${chatId}`);
+             chatRef.remove()
+                 .then(() => {
+                      console.log(`Chat ${chatId} removed from user's list.`);
+                      // If the deleted chat was the currently open one, close it
+                      if (currentChatId === chatId) {
+                          closeCurrentChat();
+                      }
+                      // UI updates via the 'value' listener, but might need explicit closeCurrentChat call
+                 })
+                 .catch(error => console.error(`Error deleting chat ${chatId} from user list:`, error));
+
+         }
+
+         // --- New Chat Logic ---
+         newChatButtonDesktop.addEventListener('click', () => openNewChatModal());
+         newChatButtonMobile.addEventListener('click', () => openNewChatModal());
+
+         function openNewChatModal() {
+             userSearchInput.value = ''; // Clear search
+             userListContainer.innerHTML = '<p>Loading users...</p>'; // Show loading indicator
+             openModal('newChatModal');
+             loadAllUsersForNewChat(); // Load users when modal opens
+         }
+
+         async function loadAllUsersForNewChat() {
+             if (!currentUser) return;
+             try {
+                 const usersSnapshot = await fbDb.ref('users').once('value');
+                 const allUsers = usersSnapshot.val() || {};
+                 renderUserList(allUsers);
+             } catch (error) {
+                 console.error("Error loading users for new chat:", error);
+                 userListContainer.innerHTML = '<p class="colorError">Failed to load users.</p>';
+             }
+         }
+
+         // Render the list of users in the "New Chat" modal
+         function renderUserList(allUsers) {
+             userListContainer.innerHTML = ''; // Clear previous list
+             const searchTerm = userSearchInput.value.toLowerCase();
+
+             Object.keys(allUsers).forEach(userId => {
+                 // Don't list the current user
+                 if (userId === currentUser.uid) return;
+
+                 const userProfile = allUsers[userId];
+                 const userNameLower = (userProfile.name || '').toLowerCase();
+
+                 // Filter by search term
+                 if (searchTerm && !userNameLower.includes(searchTerm)) {
+                     return;
+                 }
+
+                 const item = document.createElement('div');
+                 item.classList.add('userListItem');
+                 item.dataset.userId = userId; // Store user ID
+
+                 const pic = document.createElement('div');
+                 pic.classList.add('userProfilePicSmall', 'roundedFull');
+                 updateUserProfilePic(pic, userProfile.profilePicUrl, userProfile.name);
+
+                 const nameSpan = document.createElement('span');
+                 nameSpan.classList.add('userListItemName');
+                 nameSpan.textContent = userProfile.name || 'Unknown User';
+
+                 item.appendChild(pic);
+                 item.appendChild(nameSpan);
+
+                 // Add click listener to start chat
+                 item.addEventListener('click', () => startChatWithUser(userId));
+
+                 userListContainer.appendChild(item);
+             });
+
+             if (userListContainer.children.length === 0) {
+                 userListContainer.innerHTML = '<p>No users found.</p>';
+             }
+         }
+
+         // Filter user list on search input
+         userSearchInput.addEventListener('input', () => {
+             // Re-render the list with the current filter (using cached data if possible or re-fetch)
+             // Simple approach: re-fetch and re-render
+             loadAllUsersForNewChat();
+         });
+
+        // Start a chat (or open existing one) with a selected user
+        async function startChatWithUser(partnerId) {
+            if (!currentUser || !partnerId || currentUser.uid === partnerId) return;
+            console.log(`Starting chat with user: ${partnerId}`);
+            closeModal('newChatModal');
+
+            const chatId = generateChatId(currentUser.uid, partnerId);
+
+            // Check if chat already exists in userChats to avoid redundant DB writes if possible
+            // Although openChat will handle this anyway.
+            if (userChats[chatId]) {
+                openChat(chatId, partnerId);
+                return;
+            }
+
+            // If chat doesn't exist locally, ensure metadata exists in DB for both users
+            const partnerProfile = await fetchUserProfile(partnerId); // Ensure partner profile is fetched/cached
+            if (!partnerProfile) {
+                alert("Could not find user profile to start chat.");
+                return;
+            }
+            const currentUserProfile = usersCache[currentUser.uid]; // Should be cached from login
+
+            const chatMetadata = {
+                participants: {
+                    [currentUser.uid]: true,
+                    [partnerId]: true
+                },
+                createdAt: firebase.database.ServerValue.TIMESTAMP,
+                lastMessage: "",
+                timestamp: firebase.database.ServerValue.TIMESTAMP // Initial timestamp
+            };
+
+            const userChatDataSelf = {
+                partnerId: partnerId,
+                // lastReadTimestamp: 0, // Optional: track read status
+                 pinned: false,
+                 lastMessage: "",
+                 timestamp: firebase.database.ServerValue.TIMESTAMP
+            };
+            const userChatDataPartner = {
+                 partnerId: currentUser.uid,
+                 // lastReadTimestamp: 0, // Optional
+                 pinned: false,
+                 lastMessage: "",
+                 timestamp: firebase.database.ServerValue.TIMESTAMP
+             };
+
+            // Use multi-location updates to write all data atomically
+            const updates = {};
+            updates[`chats/${chatId}/metadata`] = chatMetadata;
+            updates[`userChats/${currentUser.uid}/${chatId}`] = userChatDataSelf;
+            updates[`userChats/${partnerId}/${chatId}`] = userChatDataPartner;
+
+            try {
+                await fbDb.ref().update(updates);
+                console.log(`Chat ${chatId} created/updated in DB.`);
+                openChat(chatId, partnerId); // Open the newly created chat
+            } catch (error) {
+                console.error("Error creating chat:", error);
+                alert("Failed to start chat. Please try again.");
+            }
+        }
+
+
+        // --- Active Chat Window Logic ---
+        async function openChat(chatId, partnerId) {
+            if (!currentUser || !chatId || !partnerId) return;
+
+             // If the same chat is already open, do nothing
+             // if (currentChatId === chatId) return;
+
+             console.log(`Opening chat: ${chatId} with partner: ${partnerId}`);
+
+            // Close previous chat listener if any
+            if (currentChatId && chatListeners[currentChatId]) {
+                chatListeners[currentChatId].off();
+                delete chatListeners[currentChatId];
+            }
+             // TODO: Stop listening for typing status of the previous partner
+
+            currentChatId = chatId;
+            currentPartnerId = partnerId;
+
+            // Fetch partner profile
+            const partnerProfile = await fetchUserProfile(partnerId);
+            if (!partnerProfile) {
+                 console.error("Cannot open chat, partner profile not found.");
+                 // Maybe show an error message in the chat window area
+                 closeCurrentChat(); // Reset to placeholder
+                 return;
+             }
+
+            // Update chat headers (Desktop & Mobile)
+            updateUserProfilePic(chatPartnerProfilePicDesktop, partnerProfile.profilePicUrl, partnerProfile.name);
+            chatPartnerNameDesktop.textContent = partnerProfile.name || 'Unknown User';
+            updateUserProfilePic(chatPartnerProfilePicMobile, partnerProfile.profilePicUrl, partnerProfile.name);
+            chatPartnerNameMobile.textContent = partnerProfile.name || 'Unknown User';
+
+             // Clear previous messages and typing indicators
+             messageListDesktop.innerHTML = '';
+             messageListMobile.innerHTML = '';
+             typingIndicatorDesktop.textContent = '';
+             typingIndicatorMobile.textContent = '';
+
+            // Show chat window, hide placeholder (Desktop)
+            contentPlaceholder.classList.add('hidden');
+            chatWindowDesktop.classList.remove('hidden');
+
+            // Switch view (Mobile)
+            showMobileScreen('chat');
+
+            // Listen for new messages in this chat
+            const messagesRef = fbDb.ref(`chats/${chatId}/messages`).orderByChild('timestamp').limitToLast(100); // Get last 100 messages
+            chatListeners[chatId] = messagesRef.on('child_added', snapshot => {
+                const message = snapshot.val();
+                const messageId = snapshot.key;
+                renderMessage(message, messageId);
+            });
+
+            // TODO: Listen for message status changes (sent -> read)
+            // This might involve another listener or modifying the child_added logic
+
+            // TODO: Listen for partner's typing status
+            // const typingRef = fbDb.ref(`typing/${chatId}/${partnerId}`);
+            // chatListeners[`typing_${partnerId}`] = typingRef.on('value', snapshot => {
+            //     const isTyping = snapshot.val() === true;
+            //     updateTypingIndicator(isTyping, partnerProfile.name);
+            // });
+
+             // Mark messages as read (basic implementation: update when chat opens)
+             // updateLastReadTimestamp(chatId);
+
+             // Scroll to bottom after messages load (might need a slight delay)
+             setTimeout(() => {
+                 scrollToBottom(messageListDesktop);
+                 scrollToBottom(messageListMobile);
+             }, 100); // Delay to allow rendering
+        }
+
+        function closeCurrentChat() {
+             console.log("Closing current chat");
+              // Stop listeners
+             if (currentChatId && chatListeners[currentChatId]) {
+                 chatListeners[currentChatId].off();
+                 delete chatListeners[currentChatId];
+             }
+             // TODO: Stop typing listener
+             // if (currentPartnerId && chatListeners[`typing_${currentPartnerId}`]) {
+             //     chatListeners[`typing_${currentPartnerId}`].off();
+             //     delete chatListeners[`typing_${currentPartnerId}`];
+             // }
+
+             currentChatId = null;
+             currentPartnerId = null;
+
+             // Hide chat window, show placeholder (Desktop)
+             chatWindowDesktop.classList.add('hidden');
+             contentPlaceholder.classList.remove('hidden');
+
+             // Switch back to list view (Mobile)
+             showMobileScreen('list');
+
+             // Remove active highlight from chat list
+             [...chatListDesktop.querySelectorAll('.chatListItem.active'),
+              ...chatListMobile.querySelectorAll('.chatListItem.active')]
+                 .forEach(item => item.classList.remove('active'));
+         }
+
+        // Handle back button click on Mobile
+        backButtonMobile.addEventListener('click', closeCurrentChat);
+
+        // Show partner profile details on header click
+         chatPartnerInfoDesktop.addEventListener('click', () => showPartnerProfileDetails());
+         chatPartnerInfoMobile.addEventListener('click', () => showPartnerProfileDetails());
+
+         async function showPartnerProfileDetails() {
+             if (!currentPartnerId) return;
+             const profile = await fetchUserProfile(currentPartnerId);
+             if (!profile) {
+                 alert("Could not load partner details.");
+                 return;
+             }
+
+             // Populate modal
+             updateUserProfilePic(profileDetailsPic, profile.profilePicUrl, profile.name);
+             profileDetailsName.textContent = profile.name || 'Unknown User';
+             profileDetailsGender.textContent = profile.gender ? profile.gender.replace(/_/g, ' ') : 'Not specified'; // Format gender
+             profileDetailsInfo.textContent = profile.info ? profile.info.replace(/_/g, ' ') : 'Not specified'; // Format info
+             profileDetailsDescription.textContent = profile.description || 'No description.';
+
+             openModal('profileDetailsModal');
+         }
+
+        // --- Message Sending & Rendering ---
+        function renderMessage(messageData, messageId) {
+            if (!messageData || !messageData.senderId) return;
+
+            const messageElement = document.createElement('div');
+            const bubble = document.createElement('div');
+            bubble.classList.add('messageBubble');
+
+            const text = document.createElement('div');
+            text.classList.add('messageText');
+            text.textContent = messageData.text; // TODO: Sanitize HTML if allowing rich text
+
+            const meta = document.createElement('div');
+            meta.classList.add('messageMeta');
+            const time = document.createElement('span');
+            time.classList.add('messageTimestamp');
+            time.textContent = formatTimestamp(messageData.timestamp);
+            const status = document.createElement('span');
+            status.classList.add('messageStatus');
+
+            // Determine if message is sent or received
+            if (messageData.senderId === currentUser.uid) {
+                 messageElement.classList.add('messageSent');
+                 bubble.classList.add('messageSent'); // Style bubble too
+                 // Determine status icon (✓ for sent, ✓✓ for read - needs status field)
+                 if (messageData.status === 'read') {
+                     status.innerHTML = '✓✓'; // Double tick
+                     status.classList.add('read');
+                     status.title = 'Read';
+                 } else {
+                     status.innerHTML = '✓'; // Single tick
+                     status.classList.add('sent');
+                     status.title = 'Sent'; // Or Delivered if tracking that
+                 }
+                 meta.appendChild(time);
+                 meta.appendChild(status); // Add status only for sent messages
+             } else {
+                 messageElement.classList.add('messageReceived');
+                 bubble.classList.add('messageReceived');
+                 meta.appendChild(time); // Only timestamp for received
+             }
+
+
+            bubble.appendChild(text);
+            bubble.appendChild(meta);
+            messageElement.appendChild(bubble);
+            messageElement.dataset.messageId = messageId; // Store message ID if needed
+
+            // Append to both desktop and mobile lists
+            messageListDesktop.appendChild(messageElement.cloneNode(true));
+            messageListMobile.appendChild(messageElement);
+
+            // Scroll to bottom
+            scrollToBottom(messageListDesktop);
+            scrollToBottom(messageListMobile);
+
+             // TODO: Update read status logic here or elsewhere
+             // If message received and chat is open, mark as read
+             if (messageData.senderId !== currentUser.uid && currentChatId /* && window is focused? */) {
+                 // markMessageAsRead(currentChatId, messageId);
+             }
+         }
+
+         // Send Message Function
+         function sendMessage() {
+             if (!currentUser || !currentChatId || !currentPartnerId) return;
+
+             const messageTextDesktop = messageInputDesktop.value.trim();
+             const messageTextMobile = messageInputMobile.value.trim();
+             const messageText = messageTextDesktop || messageTextMobile; // Use whichever has text
+
+             if (!messageText) return; // Don't send empty messages
+
+             const messageData = {
+                 senderId: currentUser.uid,
+                 text: messageText,
+                 timestamp: firebase.database.ServerValue.TIMESTAMP,
+                 status: 'sent' // Initial status
+             };
+
+             // Get a unique key for the new message
+             const newMessageKey = fbDb.ref(`chats/${currentChatId}/messages`).push().key;
+
+             // Prepare updates for message and chat metadata
+             const updates = {};
+             updates[`chats/${currentChatId}/messages/${newMessageKey}`] = messageData;
+             // Update last message and timestamp for both users in userChats and chat metadata
+             const lastMessageUpdate = {
+                 lastMessage: messageText,
+                 timestamp: firebase.database.ServerValue.TIMESTAMP
+             };
+             updates[`chats/${currentChatId}/metadata/lastMessage`] = messageText;
+             updates[`chats/${currentChatId}/metadata/timestamp`] = firebase.database.ServerValue.TIMESTAMP;
+             updates[`userChats/${currentUser.uid}/${currentChatId}/lastMessage`] = messageText;
+             updates[`userChats/${currentUser.uid}/${currentChatId}/timestamp`] = firebase.database.ServerValue.TIMESTAMP;
+             updates[`userChats/${currentPartnerId}/${currentChatId}/lastMessage`] = messageText; // Update for partner too
+             updates[`userChats/${currentPartnerId}/${currentChatId}/timestamp`] = firebase.database.ServerValue.TIMESTAMP; // Update for partner too
+
+
+             // Perform the multi-location update
+             fbDb.ref().update(updates)
+                 .then(() => {
+                     console.log("Message sent successfully");
+                     // Clear input fields
+                     messageInputDesktop.value = '';
+                     messageInputMobile.value = '';
+                     messageInputDesktop.style.height = 'auto'; // Reset height if it grew
+                     messageInputMobile.style.height = 'auto';
+                 })
+                 .catch(error => {
+                     console.error("Error sending message:", error);
+                     alert("Failed to send message.");
+                 });
+
+             // Stop broadcasting "typing" status
+             // updateTypingStatus(false);
+         }
+
+         // Send message on button click
+         sendMessageButtonDesktop.addEventListener('click', sendMessage);
+         sendMessageButtonMobile.addEventListener('click', sendMessage);
+
+         // Send message on Enter key press (Shift+Enter for new line)
+         [messageInputDesktop, messageInputMobile].forEach(input => {
+             input.addEventListener('keypress', (e) => {
+                 if (e.key === 'Enter' && !e.shiftKey) {
+                     e.preventDefault(); // Prevent default Enter behavior (new line)
+                     sendMessage();
+                 }
+             });
+             // Auto-resize textarea height
+             input.addEventListener('input', () => {
+                 input.style.height = 'auto'; // Reset height
+                 input.style.height = (input.scrollHeight) + 'px'; // Set to scroll height
+             });
+
+             // Typing indicator logic
+             // input.addEventListener('input', () => {
+             //     updateTypingStatus(input.value.trim().length > 0);
+             // });
+             // input.addEventListener('blur', () => {
+             //     updateTypingStatus(false); // Stop typing when input loses focus
+             // });
+         });
+
+         // --- Typing Indicator Logic (Placeholder - Requires DB implementation) ---
+         let typingTimeout = null;
+         function updateTypingStatus(isTyping) {
+             if (!currentUser || !currentChatId) return;
+
+             // Clear existing timeout if user continues typing
+             if (typingTimeout) clearTimeout(typingTimeout);
+
+             const typingRef = fbDb.ref(`typing/${currentChatId}/${currentUser.uid}`);
+
+             if (isTyping) {
+                 // Set typing status to true immediately
+                 typingRef.set(true);
+                 // Set a timeout to automatically set status to false after a delay
+                 typingTimeout = setTimeout(() => {
+                     typingRef.set(false);
+                 }, 3000); // e.g., stop showing "typing" after 3 seconds of inactivity
+             } else {
+                 // Set typing status to false immediately
+                 typingRef.set(false);
+             }
+              // Prevent infinite loop if using on 'value' listener
+             // typingRef.onDisconnect().set(false); // Ensure it's set to false if connection drops
+         }
+
+         function updateTypingIndicator(show, userName) {
+             const text = show ? `${userName || 'Someone'} is typing...` : '';
+             typingIndicatorDesktop.textContent = text;
+             typingIndicatorMobile.textContent = text;
+         }
+
+
+        // --- Read Receipt Logic (Placeholder - Requires DB implementation) ---
+        function updateLastReadTimestamp(chatId) {
+            if (!currentUser || !chatId) return;
+            const readTimestampRef = fbDb.ref(`userChats/${currentUser.uid}/${chatId}/lastReadTimestamp`);
+            readTimestampRef.set(firebase.database.ServerValue.TIMESTAMP);
+            // TODO: When receiving messages, check their timestamp against the partner's lastReadTimestamp
+            // to update the status of your sent messages from 'sent' to 'read'.
+        }
+
+        function markMessageAsRead(chatId, messageId) {
+             if (!currentUser || !chatId || !messageId) return;
+             // Update the status of the specific message in the DB
+             const messageStatusRef = fbDb.ref(`chats/${chatId}/messages/${messageId}/status`);
+             // Check current status first? Maybe only update if 'sent'?
+             messageStatusRef.set('read')
+                 .then(() => console.log(`Message ${messageId} marked as read.`))
+                 .catch(error => console.error("Error marking message as read:", error));
+
+             // TODO: Update the UI for this specific message (change checkmark color)
+             const messageElements = document.querySelectorAll(`.messageSent[data-message-id="${messageId}"] .messageStatus`);
+             messageElements.forEach(statusEl => {
+                 statusEl.innerHTML = '✓✓';
+                 statusEl.classList.remove('sent');
+                 statusEl.classList.add('read');
+                 statusEl.title = 'Read';
+             });
+         }
+
+
+        // --- UI Reset and Cleanup ---
+        function resetUI() {
+            // Clear forms
+            loginEmailInput.value = '';
+            loginPasswordInput.value = '';
+            registerNameInput.value = '';
+            registerEmailInput.value = '';
+            registerPasswordInput.value = '';
+            loginError.textContent = '';
+            registerError.textContent = '';
+
+            // Reset app screen state
+            closeCurrentChat(); // Ensure chat window is closed
+            chatListDesktop.innerHTML = '';
+            chatListMobile.innerHTML = '';
+            currentUserProfilePicSmall.textContent = '?';
+            currentUserProfilePicSmallMobile.textContent = '?';
+            settingsNameInput.value = ''; // Clear settings form too
+             settingsGenderSelect.value = 'prefer_not_to_say';
+             settingsInfoSelect.value = 'available';
+             settingsDescriptionTextarea.value = '';
+             profilePicUrlInput.value = '';
+             settingsProfilePicPreview.textContent = '?';
+             settingsError.textContent = '';
+
+            // Ensure auth screen is shown, app screen hidden
+            showScreen('auth');
+            switchAuthForm(false); // Default to login form
+        }
+
+        function cleanupListeners() {
+             console.log("Cleaning up Firebase listeners...");
+             // Turn off all active listeners
+             Object.values(chatListeners).forEach(listener => {
+                 if (listener && typeof listener.off === 'function') {
+                     listener.off();
+                 } else if (listener && typeof listener.ref === 'object' && typeof listener.ref.off === 'function') {
+                      // Handle listeners attached via query objects
+                      listener.ref.off();
+                 }
+             });
+             chatListeners = {}; // Clear the listeners object
+
+             // TODO: Clean up typing listeners if implemented separately
+         }
+
+        // --- Initial Setup ---
+        // Check auth state on load
+        // The onAuthStateChanged listener handles the initial screen display
+
+    </script>
+
+</body>
+</html>
