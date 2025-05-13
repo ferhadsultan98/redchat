@@ -934,53 +934,54 @@
 
 
     <script type="module">
-const firebaseConfig = {
-  apiKey: "AIzaSyALRHajoFgM-fWJYvi1Le-QbduTCUWDeGE",
-  authDomain: "realtimechat-e66a5.firebaseapp.com",
-  databaseURL: "https://realtimechat-e66a5-default-rtdb.firebaseio.com",
-  projectId: "realtimechat-e66a5",
-  storageBucket: "realtimechat-e66a5.firebasestorage.app",
-  messagingSenderId: "954048081853",
-  appId: "1:954048081853:web:659972b27a833f4ec56cd4",
-  measurementId: "G-XWH4L7V03P"
-};
+// Firebase zaten global olarak yüklendi, import gerek yok
+    // Firebase configuration
+    const firebaseConfig = {
+        apiKey: "AIzaSyALRHajoFgM-fWJYvi1Le-QbduTCUWDeGE",
+        authDomain: "realtimechat-e66a5.firebaseapp.com",
+        databaseURL: "https://realtimechat-e66a5-default-rtdb.firebaseio.com",
+        projectId: "realtimechat-e66a5",
+        storageBucket: "realtimechat-e66a5.firebasestorage.app",
+        messagingSenderId: "954048081853",
+        appId: "1:954048081853:web:659972b27a833f4ec56cd4",
+        measurementId: "G-XWH4L7V03P"
+    };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    // Analytics'i başlatmak istiyorsanız (isteğe bağlı, çünkü kodda kullanılmıyor gibi görünüyor)
+    // firebase.analytics();
 
-        // --- Initialize Firebase ---
-        // Use compat libraries for simpler syntax as per v9 example structure
-        firebase.initializeApp(firebaseConfig);
-        const fbAuth = firebase.auth();
-        const fbDb = firebase.database();
-        // const fbStorage = firebase.storage(); // Uncomment if using Storage for uploads
+    // --- Initialize Firebase ---
+    // Use compat libraries for simpler syntax
+    const fbAuth = firebase.auth();
+    const fbDb = firebase.database();
+    // const fbStorage = firebase.storage(); // Uncomment if using Storage for uploads
 
-        // --- Global State ---
-        let currentUser = null;
-        let currentChatId = null;
-        let currentPartnerId = null;
-        let chatListeners = {}; // To keep track of active listeners
-        let userChats = {}; // Cache user's chat list metadata
-        let usersCache = {}; // Cache for user profile data
+    // --- Global State ---
+    let currentUser = null;
+    let currentChatId = null;
+    let currentPartnerId = null;
+    let chatListeners = {}; // To keep track of active listeners
+    let userChats = {}; // Cache user's chat list metadata
+    let usersCache = {}; // Cache for user profile data
 
-        // --- DOM Element References ---
-        // Auth
-        const authScreen = document.getElementById('authScreen');
-        const loginForm = document.getElementById('loginForm');
-        const registerForm = document.getElementById('registerForm');
-        const loginEmailInput = document.getElementById('loginEmail');
-        const loginPasswordInput = document.getElementById('loginPassword');
-        const loginButton = document.getElementById('loginButton');
-        const loginError = document.getElementById('loginError');
-        const registerNameInput = document.getElementById('registerName');
-        const registerEmailInput = document.getElementById('registerEmail');
-        const registerPasswordInput = document.getElementById('registerPassword');
-        const registerButton = document.getElementById('registerButton');
-        const registerError = document.getElementById('registerError');
-        const switchToRegisterLink = document.getElementById('switchToRegister');
-        const switchToLoginLink = document.getElementById('switchToLogin');
-
+    // --- DOM Element References ---
+    // Auth
+    const authScreen = document.getElementById('authScreen');
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const loginEmailInput = document.getElementById('loginEmail');
+    const loginPasswordInput = document.getElementById('loginPassword');
+    const loginButton = document.getElementById('loginButton');
+    const loginError = document.getElementById('loginError');
+    const registerNameInput = document.getElementById('registerName');
+    const registerEmailInput = document.getElementById('registerEmail');
+    const registerPasswordInput = document.getElementById('registerPassword');
+    const registerButton = document.getElementById('registerButton');
+    const registerError = document.getElementById('registerError');
+    const switchToRegisterLink = document.getElementById('switchToRegister');
+    const switchToLoginLink = document.getElementById('switchToLogin');
         // App Screen
         const appScreen = document.getElementById('appScreen');
 
